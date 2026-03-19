@@ -5,12 +5,16 @@ import type {
   RoadWithCondition,
 } from '../types/database'
 
-// --- Weight constants for priority score ---
+// --- Weight configuration for priority score ---
 
-const WEIGHT_IRI = 0.4
-const WEIGHT_DEFECT = 0.3
-const WEIGHT_TRAFFIC = 0.2
-const WEIGHT_BEARING = 0.1
+export interface PriorityWeights {
+  iri: number
+  defect: number
+  traffic: number
+  bearing: number
+}
+
+export const DEFAULT_WEIGHTS: PriorityWeights = { iri: 0.4, defect: 0.3, traffic: 0.2, bearing: 0.1 }
 
 // --- Normalization helpers (all return 0–1) ---
 
@@ -77,17 +81,20 @@ export function normalizeBearing(capacity: string): number {
  *
  * Weights: IRI 40%, defect severity 30%, traffic 20%, bearing capacity 10%.
  */
-export function calculatePriorityScore(condition: ConditionData): number {
+export function calculatePriorityScore(
+  condition: ConditionData,
+  weights: PriorityWeights = DEFAULT_WEIGHTS
+): number {
   const iri = normalizeIRI(condition.iri_value)
   const defect = normalizeDefectSeverity(condition.defect_severity)
   const traffic = normalizeTraffic(condition.traffic_volume_daily)
   const bearing = normalizeBearing(condition.bearing_capacity)
 
   const weighted =
-    iri * WEIGHT_IRI +
-    defect * WEIGHT_DEFECT +
-    traffic * WEIGHT_TRAFFIC +
-    bearing * WEIGHT_BEARING
+    iri * weights.iri +
+    defect * weights.defect +
+    traffic * weights.traffic +
+    bearing * weights.bearing
 
   return Math.round(weighted * 100)
 }
@@ -132,7 +139,8 @@ export function calculateEstimatedCost(
 export function buildPriorityList(
   sections: RoadSection[],
   conditions: ConditionData[],
-  repairTypes: RepairType[]
+  repairTypes: RepairType[],
+  weights?: PriorityWeights
 ): RoadWithCondition[] {
   // Index conditions by road_section_id for fast lookup.
   // If multiple years exist for a section, keep the most recent.
@@ -152,7 +160,7 @@ export function buildPriorityList(
       continue
     }
 
-    const priorityScore = calculatePriorityScore(condition)
+    const priorityScore = calculatePriorityScore(condition, weights)
     const recommendedRepair = matchRepairType(condition.iri_value, repairTypes)
     const estimatedCost = calculateEstimatedCost(
       section.length_km,

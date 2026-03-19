@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import { fetchMunicipalities, fetchRoadSections, fetchConditionData, fetchRepairTypes } from '@/lib/queries'
-import { buildPriorityList } from '@/lib/priority'
+import { buildPriorityList, DEFAULT_WEIGHTS } from '@/lib/priority'
+import type { PriorityWeights } from '@/lib/priority'
 import type { RoadWithCondition } from '@/types/database'
 
 const fmt = (n: number) => n.toLocaleString('et-EE')
@@ -74,6 +75,15 @@ export default function Home() {
     })
   }
 
+  // Load custom weights from localStorage
+  const getWeights = (): PriorityWeights => {
+    try {
+      const saved = localStorage.getItem('priority_weights')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return DEFAULT_WEIGHTS
+  }
+
   // Fetch municipalities on mount
   useEffect(() => {
     fetchMunicipalities().then(setMunicipalities).catch(console.error)
@@ -94,7 +104,7 @@ export default function Home() {
       ])
       const sectionIds = sections.map(s => s.id)
       const conditionData = await fetchConditionData(sectionIds)
-      const priorityList = buildPriorityList(sections, conditionData, repairTypes)
+      const priorityList = buildPriorityList(sections, conditionData, repairTypes, getWeights())
       setRows(priorityList)
       setDataLoaded(true)
     } catch (err) {
@@ -156,7 +166,15 @@ export default function Home() {
                 <p className="text-base text-gray-500 dark:text-gray-400">Teede hoolduse planeerimise tööriist</p>
               </div>
             </div>
-            <DarkModeToggle dark={dark} onToggle={toggleDark} />
+            <div className="flex items-center gap-2">
+              <a
+                href="/admin"
+                className="flex h-10 items-center rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm font-medium text-gray-600 dark:text-gray-300 shadow-sm transition hover:bg-gray-100 dark:hover:bg-slate-700"
+              >
+                Admin
+              </a>
+              <DarkModeToggle dark={dark} onToggle={toggleDark} />
+            </div>
           </div>
         </div>
       </header>
