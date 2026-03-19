@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
-import { fetchMunicipalities, fetchRoadSections, fetchConditionData, fetchRepairTypes } from '@/lib/queries'
+import { fetchMunicipalities, fetchRoadSections, fetchConditionData, fetchRepairTypes, insertPlanSnapshot, insertAuditLog, fetchSnapshotCountForMunicipality } from '@/lib/queries'
 import { buildPriorityList, DEFAULT_WEIGHTS } from '@/lib/priority'
 import type { PriorityWeights } from '@/lib/priority'
 import type { RoadWithCondition } from '@/types/database'
+import { generateReferenceCode, createSnapshotData } from '@/lib/audit'
+import Navigation from '@/components/Navigation'
+import DarkModeToggle from '@/components/DarkModeToggle'
 
 const fmt = (n: number) => n.toLocaleString('et-EE')
 
@@ -27,25 +30,6 @@ function ScoreBar({ score, maxScore }: { score: number; maxScore: number }) {
   )
 }
 
-function DarkModeToggle({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
-  return (
-    <button
-      onClick={onToggle}
-      className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 shadow-sm transition hover:bg-gray-100 dark:hover:bg-gray-700"
-      title={dark ? 'Hele teema' : 'Tume teema'}
-    >
-      {dark ? (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
-        </svg>
-      ) : (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-        </svg>
-      )}
-    </button>
-  )
-}
 
 export default function Home() {
   const [municipalities, setMunicipalities] = useState<string[]>([])
@@ -56,6 +40,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [dark, setDark] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState('')
 
   // Dark mode toggle
   useEffect(() => {
@@ -149,6 +135,26 @@ export default function Home() {
     }
   }
 
+  const handleSavePlan = async () => {
+    if (!selectedMunicipality || rows.length === 0) return
+    setSaving(true)
+    setSaveMessage('')
+    try {
+      const weights = getWeights()
+      const count = await fetchSnapshotCountForMunicipality(selectedMunicipality)
+      const refCode = generateReferenceCode(selectedMunicipality, count)
+      const snapshotData = createSnapshotData(selectedMunicipality, budget, weights, rows, refCode)
+      const snapshot = await insertPlanSnapshot(snapshotData)
+      await insertAuditLog(snapshot.id, 'created')
+      setSaveMessage(`Plaan salvestatud: ${refCode}`)
+      setTimeout(() => setSaveMessage(''), 5000)
+    } catch (err) {
+      setSaveMessage('Viga salvestamisel: ' + (err as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900 font-[var(--font-geist-sans)] transition-colors">
       {/* Header */}
@@ -167,18 +173,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <a
-                href="/dashboard"
-                className="flex h-10 items-center rounded-lg bg-[#009B8D]/10 dark:bg-[#009B8D]/20 border border-[#009B8D]/30 px-3 text-sm font-medium text-[#009B8D] dark:text-[#5EEAD4] shadow-sm transition hover:bg-[#009B8D]/20 dark:hover:bg-[#009B8D]/30"
-              >
-                Riskide ülevaade
-              </a>
-              <a
-                href="/admin"
-                className="flex h-10 items-center rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm font-medium text-gray-600 dark:text-gray-300 shadow-sm transition hover:bg-gray-100 dark:hover:bg-slate-700"
-              >
-                Admin
-              </a>
+              <Navigation />
               <DarkModeToggle dark={dark} onToggle={toggleDark} />
             </div>
           </div>
@@ -254,6 +249,27 @@ export default function Home() {
                 style={{ width: `${Math.min((totalCost / budget) * 100, 100)}%` }}
               />
             </div>
+          </div>
+        )}
+
+        {/* Save plan button */}
+        {dataLoaded && !loading && rows.length > 0 && (
+          <div className="mb-6 flex items-center gap-3">
+            <button
+              onClick={handleSavePlan}
+              disabled={saving}
+              className="flex items-center gap-2 rounded-lg bg-[#009B8D] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#008577] disabled:opacity-50"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>
+              {saving ? 'Salvestan...' : 'Lukusta plaan'}
+            </button>
+            {saveMessage && (
+              <span className={`text-sm font-medium ${saveMessage.startsWith('Viga') ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                {saveMessage}
+              </span>
+            )}
           </div>
         )}
 

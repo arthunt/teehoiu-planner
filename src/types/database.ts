@@ -43,3 +43,24 @@ export interface RoadWithCondition extends RoadSection {
   recommended_repair: RepairType
   estimated_cost: number
 }
+
+export interface PlanSnapshot {
+  id: number
+  reference_code: string
+  municipality: string
+  budget: number
+  weights_json: Record<string, number>
+  ranked_list_json: RoadWithCondition[]
+  total_cost: number
+  covered_count: number
+  created_at: string
+  locked_at: string | null
+  notes: string | null
+}
+
+export interface AuditLog {
+  id: number
+  snapshot_id: number
+  action: string
+  created_at: string
+}

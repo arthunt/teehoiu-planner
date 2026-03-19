@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { RoadSection, ConditionData, RepairType } from '../types/database'
+import { RoadSection, ConditionData, RepairType, PlanSnapshot, AuditLog } from '../types/database'
 
 export async function fetchMunicipalities(): Promise<string[]> {
   const { data, error } = await supabase
@@ -117,4 +117,81 @@ export async function deleteConditionData(id: number): Promise<void> {
     .eq('id', id)
 
   if (error) throw error
+}
+
+// --- Plan Snapshots ---
+
+export async function fetchPlanSnapshots(): Promise<PlanSnapshot[]> {
+  const { data, error } = await supabase
+    .from('plan_snapshots')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as PlanSnapshot[]
+}
+
+export async function fetchPlanSnapshot(id: number): Promise<PlanSnapshot | null> {
+  const { data, error } = await supabase
+    .from('plan_snapshots')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) throw error
+  return data as PlanSnapshot | null
+}
+
+export async function fetchSnapshotCountForMunicipality(municipality: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('plan_snapshots')
+    .select('*', { count: 'exact', head: true })
+    .eq('municipality', municipality)
+
+  if (error) throw error
+  return count ?? 0
+}
+
+export async function insertPlanSnapshot(snapshot: Omit<PlanSnapshot, 'id' | 'created_at' | 'locked_at'>): Promise<PlanSnapshot> {
+  const { data, error } = await supabase
+    .from('plan_snapshots')
+    .insert(snapshot)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as PlanSnapshot
+}
+
+export async function lockPlanSnapshot(id: number): Promise<void> {
+  const { error } = await supabase
+    .from('plan_snapshots')
+    .update({ locked_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+// --- Audit Log ---
+
+export async function insertAuditLog(snapshotId: number, action: string): Promise<AuditLog> {
+  const { data, error } = await supabase
+    .from('audit_log')
+    .insert({ snapshot_id: snapshotId, action })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as AuditLog
+}
+
+export async function fetchAuditLogs(snapshotId: number): Promise<AuditLog[]> {
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('*')
+    .eq('snapshot_id', snapshotId)
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as AuditLog[]
 }
