@@ -168,6 +168,12 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2">
               <a
+                href="/dashboard"
+                className="flex h-10 items-center rounded-lg bg-[#009B8D]/10 dark:bg-[#009B8D]/20 border border-[#009B8D]/30 px-3 text-sm font-medium text-[#009B8D] dark:text-[#5EEAD4] shadow-sm transition hover:bg-[#009B8D]/20 dark:hover:bg-[#009B8D]/30"
+              >
+                Riskide ülevaade
+              </a>
+              <a
                 href="/admin"
                 className="flex h-10 items-center rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 text-sm font-medium text-gray-600 dark:text-gray-300 shadow-sm transition hover:bg-gray-100 dark:hover:bg-slate-700"
               >
